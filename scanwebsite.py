@@ -30,6 +30,18 @@ PATHS = [
 ]
 
 # -----------------------------
+# SAFE CONTENT READ (FIX)
+# -----------------------------
+def get_page_content_safe(page):
+    try:
+        page.wait_for_load_state("domcontentloaded", timeout=8000)
+        page.wait_for_timeout(1000)
+        return page.content().lower()
+    except:
+        return ""
+
+
+# -----------------------------
 # GET REAL HTTP STATUS
 # -----------------------------
 def get_status(context, url):
@@ -39,18 +51,24 @@ def get_status(context, url):
     except Exception as e:
         return None, str(e)
 
+
 # -----------------------------
-# LOAD PAGE (for content check)
+# LOAD PAGE
 # -----------------------------
 def load_page(page, url):
     try:
         start = time.time()
+
         page.goto(url, timeout=TIMEOUT, wait_until="domcontentloaded")
+
+        # 🔥 IMPORTANT FIX (stabilization)
         page.wait_for_timeout(2000)
+
         load_time = round(time.time() - start, 2)
         return load_time, None
     except Exception as e:
         return None, str(e)
+
 
 # -----------------------------
 # MAIN
@@ -75,27 +93,27 @@ def run():
         context = browser.new_context()
         page = context.new_page()
 
-        print(" Opening login page...")
+        print("🔐 Opening login page...")
         page.goto(BASE_URL, timeout=TIMEOUT)
 
-        print(" Logging in...")
+        print("🔐 Logging in...")
         try:
             page.fill("input[type='text']", USERNAME)
             page.fill("input[type='password']", PASSWORD)
             page.click("input[type='submit']")
         except Exception as e:
-            print(" Login error:", e)
+            print("❌ Login error:", e)
             browser.close()
             return
 
         page.wait_for_timeout(4000)
 
         if "login" in page.url.lower():
-            print(" Login failed")
+            print("❌ Login failed")
             browser.close()
             return
 
-        print(" Login successful\n")
+        print("✅ Login successful\n")
 
         failed_results = []
 
@@ -105,11 +123,12 @@ def run():
             status_code, req_error = get_status(context, url)
             load_time, nav_error = load_page(page, url)
 
-            page_content = page.content().lower()
+            # ✅ FIXED (no crash now)
+            page_content = get_page_content_safe(page)
             current_url = page.url.lower()
 
             # -----------------------------
-            # DETERMINE STATUS
+            # STATUS LOGIC
             # -----------------------------
             if status_code is None:
                 final_status = "Network Error"
@@ -125,7 +144,7 @@ def run():
 
             print(f"{final_status} | {load_time}s | {url}")
 
-            #  SAVE ONLY FAILURES
+            # SAVE ONLY FAILURES
             if final_status != "200":
                 failed_results.append([
                     url,
@@ -145,9 +164,9 @@ def run():
                 writer.writerow(["URL", "Status", "Load Time (s)", "Error"])
                 writer.writerows(failed_results)
 
-            print(f"\n Failed report saved: {report_file}")
+            print(f"\n📊 Failed report saved: {report_file}")
         else:
-            print("\n No failed URLs found")
+            print("\n✅ No failed URLs found")
 
 
 if __name__ == "__main__":
